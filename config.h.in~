@@ -1,8 +1,5 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
-/* Define if building universal (internal helper macro) */
-#undef AC_APPLE_UNIVERSAL_BUILD
-
 /* Define if you have a getaddrinfo that fails for the all-zeros IPv6 address
    */
 #undef AIX_GETNAMEINFO_HACK
@@ -602,6 +599,9 @@
 /* Define to 1 if you have the `memmove' function. */
 #undef HAVE_MEMMOVE
 
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
 /* Define to 1 if you have the `mkdtemp' function. */
 #undef HAVE_MKDTEMP
 
@@ -846,9 +846,6 @@
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
 
-/* Define to 1 if you have the <stdio.h> header file. */
-#undef HAVE_STDIO_H
-
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
 
@@ -903,13 +900,13 @@
 /* define if you have struct sockaddr_in6 data type */
 #undef HAVE_STRUCT_SOCKADDR_IN6
 
-/* Define to 1 if `sin6_scope_id' is a member of `struct sockaddr_in6'. */
+/* Define to 1 if `sin6_scope_id' is member of `struct sockaddr_in6'. */
 #undef HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID
 
 /* define if you have struct sockaddr_storage data type */
 #undef HAVE_STRUCT_SOCKADDR_STORAGE
 
-/* Define to 1 if `st_blksize' is a member of `struct stat'. */
+/* Define to 1 if `st_blksize' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_BLKSIZE
 
 /* Define to 1 if the system has the type `struct timespec'. */
@@ -1247,9 +1244,6 @@
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
 
-/* Define to the home page for this package. */
-#undef PACKAGE_URL
-
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
@@ -1336,9 +1330,7 @@
 /* Prepend the address family to IP tunnel traffic */
 #undef SSH_TUN_PREPEND_AF
 
-/* Define to 1 if all of the C90 standard headers exist (not just the ones
-   required in a freestanding environment). This macro is provided for
-   backward compatibility; new code need not use it. */
+/* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
 /* Define if you want a different $PATH for the superuser */
@@ -1405,17 +1397,9 @@
 /* Define if you want SELinux support. */
 #undef WITH_SELINUX
 
-/* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
-   significant byte first (like Motorola and SPARC, unlike Intel). */
-#if defined AC_APPLE_UNIVERSAL_BUILD
-# if defined __BIG_ENDIAN__
-#  define WORDS_BIGENDIAN 1
-# endif
-#else
-# ifndef WORDS_BIGENDIAN
-#  undef WORDS_BIGENDIAN
-# endif
-#endif
+/* Define to 1 if your processor stores words with the most significant byte
+   first (like Motorola and SPARC, unlike Intel and VAX). */
+#undef WORDS_BIGENDIAN
 
 /* Define if xauth is found in your path */
 #undef XAUTH_PATH
