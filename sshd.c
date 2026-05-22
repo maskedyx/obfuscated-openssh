@@ -435,8 +435,8 @@ sshd_exchange_identification(int sock_in, int sock_out)
 	}
 
 	if(use_obfuscation) {
-		free(server_version_string);
-		server_version_string = strdup(buf);
+		xfree(server_version_string);
+		server_version_string = xstrdup(buf);
 	}
 
 	/* Read other sides version identification. */

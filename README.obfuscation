@@ -144,3 +144,6 @@ for preventing casual portscanning and fingerprinting of your ssh server.
 
     h = SHA1(seed || password || constant)
 
+Current releases derive keyword-protected keys exactly as shown above.
+Updated servers also retain compatibility with older clients that used the
+historical buggy derivation which accidentally omitted the password.
