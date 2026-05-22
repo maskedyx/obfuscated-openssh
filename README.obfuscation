@@ -34,6 +34,9 @@ without knowing the keyword, and the obfuscation keyword is used to derive the
 keys that encrypt the handshake in order prevent decrypting the handshake 
 traffic without knowing the keyword.
 
+The obfuscation keyword should be treated as sensitive shared secret material.
+Current code avoids writing configured keyword values to debug logs.
+
 
 
 Configuration
@@ -140,5 +143,4 @@ to initiate a handshake with the server.  This feature should not be considered 
 for preventing casual portscanning and fingerprinting of your ssh server.
 
     h = SHA1(seed || password || constant)
-
 

@@ -1,12 +1,21 @@
 #include "includes.h"
 #include <openssl/evp.h>
 #include <openssl/rc4.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "atomicio.h"
 #include "xmalloc.h"
 #include "log.h"
 #include "obfuscate.h"
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
+# define SSH_EVP_MD_CTX_NEW() EVP_MD_CTX_new()
+# define SSH_EVP_MD_CTX_FREE(ctx) EVP_MD_CTX_free((ctx))
+#else
+# define SSH_EVP_MD_CTX_NEW() EVP_MD_CTX_create()
+# define SSH_EVP_MD_CTX_FREE(ctx) EVP_MD_CTX_destroy((ctx))
+#endif
 
 static RC4_KEY rc4_input;
 static RC4_KEY rc4_output;
@@ -103,7 +112,9 @@ obfuscate_send_seed(int sock_out)
 	obfuscate_output(((u_char *)seed) + OBFUSCATE_SEED_LENGTH,
 		message_length - OBFUSCATE_SEED_LENGTH);
 	debug2("obfuscate_send_seed: Sending seed message with %d bytes of padding", padding_length);
-	atomicio(vwrite, sock_out, seed, message_length);
+	if (atomicio(vwrite, sock_out, seed, message_length) != message_length)
+		fatal("obfuscate_send_seed: write failed");
+	memset(seed, 0, message_length);
 	xfree(seed);
 
 }
@@ -111,7 +122,8 @@ obfuscate_send_seed(int sock_out)
 void
 obfuscate_set_keyword(const char *keyword)
 {
-	debug2("obfuscate_set_keyword: Setting obfuscation keyword to '%s'", keyword);
+	debug2("obfuscate_set_keyword: Setting obfuscation keyword (length %lu)",
+	    (unsigned long)strlen(keyword));
 	obfuscate_keyword = keyword;
 }
 
@@ -144,52 +156,65 @@ initialize(const u_char *seed, int server)
 static void
 generate_key_pair(const u_char *seed, u_char *client_to_server_key, u_char *server_to_client_key)
 {
-	generate_key(seed, "client_to_server", strlen("client_to_server"), client_to_server_key);
-	generate_key(seed, "server_to_client", strlen("server_to_client"), server_to_client_key);
+	generate_key(seed, (const u_char *)"client_to_server",
+	    strlen("client_to_server"), client_to_server_key);
+	generate_key(seed, (const u_char *)"server_to_client",
+	    strlen("server_to_client"), server_to_client_key);
 }
 
 static void
 generate_key(const u_char *seed, const u_char *iv, u_int iv_len, u_char *key_data)
 {
-	EVP_MD_CTX ctx;
+	EVP_MD_CTX *ctx;
 	u_char md_output[EVP_MAX_MD_SIZE];
-	int md_len;
+	u_int md_len;
 	int i;
 	u_char *buffer;
 	u_char *p;
 	u_int buffer_length;
+	u_int keyword_len = 0;
 
 	buffer_length = OBFUSCATE_SEED_LENGTH + iv_len;
-	if(obfuscate_keyword)
-		buffer_length += strlen(obfuscate_keyword);
+	if(obfuscate_keyword) {
+		keyword_len = strlen(obfuscate_keyword);
+		buffer_length += keyword_len;
+	}
 
 	p = buffer = xmalloc(buffer_length);
+	ctx = SSH_EVP_MD_CTX_NEW();
+	if (ctx == NULL)
+		fatal("Cannot allocate digest context");
 
 	memcpy(p, seed, OBFUSCATE_SEED_LENGTH);
 	p += OBFUSCATE_SEED_LENGTH;
 
 	if(obfuscate_keyword) {
-		memcpy(p, obfuscate_keyword, strlen(obfuscate_keyword));
-		p += strlen(obfuscate_keyword);
+		memcpy(p, obfuscate_keyword, keyword_len);
+		p += keyword_len;
 	}
 	memcpy(p, iv, iv_len);
 
-	EVP_DigestInit(&ctx, EVP_sha1());
-	EVP_DigestUpdate(&ctx, buffer, OBFUSCATE_SEED_LENGTH + iv_len);
-	EVP_DigestFinal(&ctx, md_output, &md_len);
+	if (!EVP_DigestInit_ex(ctx, EVP_sha1(), NULL) ||
+	    !EVP_DigestUpdate(ctx, buffer, OBFUSCATE_SEED_LENGTH + iv_len) ||
+	    !EVP_DigestFinal_ex(ctx, md_output, &md_len))
+		fatal("Cannot derive obfuscation key");
 
+	memset(buffer, 0, buffer_length);
 	xfree(buffer);
 
 	for(i = 0; i < OBFUSCATE_HASH_ITERATIONS; i++) {
-		EVP_DigestInit(&ctx, EVP_sha1());
-		EVP_DigestUpdate(&ctx, md_output, md_len);
-		EVP_DigestFinal(&ctx, md_output, &md_len);
+		if (!EVP_DigestInit_ex(ctx, EVP_sha1(), NULL) ||
+		    !EVP_DigestUpdate(ctx, md_output, md_len) ||
+		    !EVP_DigestFinal_ex(ctx, md_output, &md_len))
+			fatal("Cannot derive obfuscation key");
 	}
+	SSH_EVP_MD_CTX_FREE(ctx);
 
 	if(md_len < OBFUSCATE_KEY_LENGTH) 
 		fatal("Cannot derive obfuscation keys from hash length of %d", md_len);
 
 	memcpy(key_data, md_output, OBFUSCATE_KEY_LENGTH);
+	memset(md_output, 0, sizeof(md_output));
 }
 
 static void

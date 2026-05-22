@@ -3,16 +3,22 @@
 
 You will need working installations of Zlib and OpenSSL.
 
-Zlib 1.1.4 or 1.2.1.2 or greater (ealier 1.2.x versions have problems):
+Zlib 1.2.3 or greater, including current 1.3.x releases:
 http://www.gzip.org/zlib/
 
-OpenSSL 0.9.6 or greater:
+OpenSSL 1.0.x, 1.1.x and 3.x headers/libraries are recognised by configure.
+This tree still requires additional source-level API modernization before a
+full OpenSSL 3 build succeeds.
 http://www.openssl.org/
 
 (OpenSSL 0.9.5a is partially supported, but some ciphers (SSH protocol 1
 Blowfish) do not work correctly.)
 
 The remaining items are optional.
+
+On toolchains that support them, configure now automatically enables modern
+hardening flags including _FORTIFY_SOURCE, stack clash protection, PIE and
+RELRO/NOW linker protections.
 
 NB. If you operating system supports /dev/random, you should configure
 OpenSSL to use it. OpenSSH relies on OpenSSL's direct support of

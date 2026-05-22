@@ -175,6 +175,52 @@ int main(void){char x[[256]]; snprintf(x, sizeof(x), "XXX"); return 0;}
 	fi
 fi
 
+for t in "-D_FORTIFY_SOURCE=3" "-D_FORTIFY_SOURCE=2"; do
+	AC_MSG_CHECKING(if $CC supports $t)
+	saved_CPPFLAGS="$CPPFLAGS"
+	CPPFLAGS="$CPPFLAGS $t"
+	AC_LINK_IFELSE([AC_LANG_SOURCE([[
+#include <stdio.h>
+int main(void) { puts("fortify"); return 0; }
+	]])],
+		[ AC_MSG_RESULT(yes)
+		  break ],
+		[ AC_MSG_RESULT(no)
+		  CPPFLAGS="$saved_CPPFLAGS" ]
+	)
+done
+
+for t in -fstack-clash-protection -fPIE; do
+	AC_MSG_CHECKING(if $CC supports $t)
+	saved_CFLAGS="$CFLAGS"
+	saved_LDFLAGS="$LDFLAGS"
+	CFLAGS="$CFLAGS $t"
+	if test "x$t" = "x-fPIE"; then
+		LDFLAGS="$LDFLAGS -pie"
+	fi
+	AC_LINK_IFELSE([AC_LANG_SOURCE([[
+int main(void) { return 0; }
+	]])],
+		[ AC_MSG_RESULT(yes) ],
+		[ AC_MSG_RESULT(no)
+		  CFLAGS="$saved_CFLAGS"
+		  LDFLAGS="$saved_LDFLAGS" ]
+	)
+done
+
+for t in "-Wl,-z,relro" "-Wl,-z,now"; do
+	AC_MSG_CHECKING(if linker supports $t)
+	saved_LDFLAGS="$LDFLAGS"
+	LDFLAGS="$LDFLAGS $t"
+	AC_LINK_IFELSE([AC_LANG_SOURCE([[
+int main(void) { return 0; }
+	]])],
+		[ AC_MSG_RESULT(yes) ],
+		[ AC_MSG_RESULT(no)
+		  LDFLAGS="$saved_LDFLAGS" ]
+	)
+done
+
 if test "x$no_attrib_nonnull" != "x1" ; then
 	AC_DEFINE(HAVE_ATTRIBUTE__NONNULL__, 1, [Have attribute nonnull])
 fi
@@ -1012,13 +1058,18 @@ AC_ARG_WITH(zlib-version-check,
 AC_MSG_CHECKING(for possibly buggy zlib)
 AC_RUN_IFELSE([AC_LANG_SOURCE([[
 #include <stdio.h>
+#include <stdlib.h>
 #include <zlib.h>
 int main()
 {
 	int a=0, b=0, c=0, d=0, n, v;
 	n = sscanf(ZLIB_VERSION, "%d.%d.%d.%d", &a, &b, &c, &d);
-	if (n != 3 && n != 4)
+	if (n < 2 || n > 4)
 		exit(1);
+	if (n < 3)
+		c = 0;
+	if (n < 4)
+		d = 0;
 	v = a*1000000 + b*10000 + c*100 + d;
 	fprintf(stderr, "found zlib version %s (%d)\n", ZLIB_VERSION, v);
 
@@ -1905,9 +1956,18 @@ AC_MSG_CHECKING([OpenSSL header version])
 AC_RUN_IFELSE(
 	[AC_LANG_SOURCE([[
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <openssl/opensslv.h>
+#include <openssl/crypto.h>
 #define DATA "conftest.sslincver"
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+# define SSH_OPENSSL_VERSION_NUM OpenSSL_version_num()
+# define SSH_OPENSSL_VERSION_TEXT OpenSSL_version(OPENSSL_VERSION)
+#else
+# define SSH_OPENSSL_VERSION_NUM SSLeay()
+# define SSH_OPENSSL_VERSION_TEXT SSLeay_version(SSLEAY_VERSION)
+#endif
 int main(void) {
 	FILE *fd;
 	int rc;
@@ -1916,7 +1976,8 @@ int main(void) {
 	if(fd == NULL)
 		exit(1);
 
-	if ((rc = fprintf(fd ,"%x (%s)\n", OPENSSL_VERSION_NUMBER, OPENSSL_VERSION_TEXT)) <0)
+	if ((rc = fprintf(fd ,"%lx (%s)\n", (unsigned long)OPENSSL_VERSION_NUMBER,
+	    OPENSSL_VERSION_TEXT)) <0)
 		exit(1);
 
 	exit(0);
@@ -1940,10 +2001,18 @@ AC_MSG_CHECKING([OpenSSL library version])
 AC_RUN_IFELSE(
 	[AC_LANG_SOURCE([[
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <openssl/opensslv.h>
 #include <openssl/crypto.h>
 #define DATA "conftest.ssllibver"
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+# define SSH_OPENSSL_VERSION_NUM OpenSSL_version_num()
+# define SSH_OPENSSL_VERSION_TEXT OpenSSL_version(OPENSSL_VERSION)
+#else
+# define SSH_OPENSSL_VERSION_NUM SSLeay()
+# define SSH_OPENSSL_VERSION_TEXT SSLeay_version(SSLEAY_VERSION)
+#endif
 int main(void) {
 	FILE *fd;
 	int rc;
@@ -1952,7 +2021,8 @@ int main(void) {
 	if(fd == NULL)
 		exit(1);
 
-	if ((rc = fprintf(fd ,"%x (%s)\n", SSLeay(), SSLeay_version(SSLEAY_VERSION))) <0)
+	if ((rc = fprintf(fd ,"%lx (%s)\n", (unsigned long)SSH_OPENSSL_VERSION_NUM,
+	    SSH_OPENSSL_VERSION_TEXT)) <0)
 		exit(1);
 
 	exit(0);
@@ -1983,9 +2053,16 @@ AC_ARG_WITH(openssl-header-check,
 AC_MSG_CHECKING([whether OpenSSL's headers match the library])
 AC_RUN_IFELSE(
 	[AC_LANG_SOURCE([[
+#include <stdlib.h>
 #include <string.h>
 #include <openssl/opensslv.h>
-int main(void) { exit(SSLeay() == OPENSSL_VERSION_NUMBER ? 0 : 1); }
+#include <openssl/crypto.h>
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+# define SSH_OPENSSL_VERSION_NUM OpenSSL_version_num()
+#else
+# define SSH_OPENSSL_VERSION_NUM SSLeay()
+#endif
+int main(void) { exit(SSH_OPENSSL_VERSION_NUM == OPENSSL_VERSION_NUMBER ? 0 : 1); }
 	]])],
 	[
 		AC_MSG_RESULT(yes)
